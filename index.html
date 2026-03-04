@@ -3,131 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Transporte Scan</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
-        body { background-color: #000; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { margin: 0; font-family: sans-serif; background: #000; color: white; height: 100vh; display: flex; flex-direction: column; }
         
-        /* Cabecera compacta */
-        .header { background: #1a1a1a; padding: 10px; text-align: center; font-size: 16px; font-weight: bold; border-bottom: 1px solid #333; }
-        
-        /* Selector de ruta */
-        .controls { padding: 10px; background: #000; }
-        select { width: 100%; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; background: #222; color: #00d2ff; outline: none; appearance: none; text-align: center; }
-        
-        /* CONTENEDOR DE CÁMARA REDUCIDO (40% de alto) */
-        #reader-container { 
-            width: 100%; 
-            height: 40vh; /* Ocupa solo el 40% de la altura de la pantalla */
-            background: #000; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            border-top: 2px solid #333;
-            border-bottom: 2px solid #333;
-        }
+        /* CÁMARA MUY PEQUEÑA */
+        #reader-wrapper { width: 160px; height: 160px; margin: 10px auto; border: 3px solid #333; border-radius: 20px; overflow: hidden; position: relative; }
         #reader { width: 100%; height: 100%; }
-        /* Ajuste para que el video se adapte al contenedor chico */
-        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
-        
-        /* BARRA DE RESULTADOS GIGANTE (Prioridad visual) */
-        .result-container { 
-            flex-grow: 1; /* Ocupa todo el espacio restante */
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center; 
-            text-align: center; 
-            padding: 20px;
-            transition: background 0.1s;
-        }
-        
-        /* Estados de la barra de resultados */
-        .esperando { background: #111; color: #aaa; }
-        .validando { background: #111; color: #ffc107; }
-        .ok { background: #28a745; color: white; }
-        .err { background: #dc3545; color: white; }
 
-        /* Texto del resultado GIGANTE */
-        #res-text { font-size: 32px; font-weight: 900; line-height: 1.2; text-transform: uppercase; }
-        #res-subtext { font-size: 18px; margin-top: 5px; opacity: 0.8; }
+        .selector { padding: 10px; }
+        select { width: 100%; padding: 12px; border-radius: 10px; background: #222; color: #fff; border: 1px solid #444; font-size: 16px; }
 
+        /* ÁREA DE RESULTADO GIGANTE */
+        #res-box { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transition: 0.2s; }
+        
+        .msg-main { font-size: 45px; font-weight: bold; padding: 10px; line-height: 1; }
+        .msg-sub { font-size: 20px; margin-top: 10px; opacity: 0.8; }
+
+        /* COLORES */
+        .color-buscando { background: #111; }
+        .color-ok { background: #1b5e20; } /* Verde oscuro */
+        .color-ruta { background: #e65100; } /* Naranja */
+        .color-error { background: #b71c1c; } /* Rojo */
     </style>
 </head>
 <body>
-    <div class="header">Transporte Scan</div>
-    
-    <div class="controls">
+
+    <div class="selector">
         <select id="ruta">
-            <option value="Real_palmas">🚌 Ruta: Real Palmas</option>
-            <option value="Villas_alcala">🚌 Ruta: Villas Alcalá</option>
+            <option value="Real_palmas">Real Palmas</option>
+            <option value="Villas_alcala">Villas Alcalá</option>
         </select>
     </div>
 
-    <div id="reader-container">
+    <div id="reader-wrapper">
         <div id="reader"></div>
     </div>
-    
-    <div id="res-container" class="result-container esperando">
-        <div id="res-text">Escaneando...</div>
-        <div id="res-subtext">Acerque el código QR</div>
+
+    <div id="res-box" class="color-buscando">
+        <div id="msg-main">ESPERANDO</div>
+        <div id="msg-sub">Escanee un código QR</div>
     </div>
 
     <script>
-        // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT
-        const SCRIPT_URL = "TU_URL_DE_GOOGLE_SCRIPT"; 
-        
+        // Busca esta línea en tu archivo index.html de GitHub y pégalo así:
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuzOA0muWLjxRrTZ-uKX7X8ELfMKVgdnydVu0AxqoYVKiYMcYw8k4rPfTCygScxc2MpQ/exec";
+
         const html5QrCode = new Html5Qrcode("reader");
-        let bloqueado = false; // Control para modo ráfaga
+        let activo = true;
 
-        function onScanSuccess(decodedText) {
-            if (bloqueado) return;
-            bloqueado = true; 
-            
-            const resContainer = document.getElementById("res-container");
-            const resText = document.getElementById("res-text");
-            const resSubtext = document.getElementById("res-subtext");
-            
-            resText.innerText = "Verificando...";
-            resSubtext.innerText = "Código: " + decodedText;
-            resContainer.className = "result-container validando";
+        function leer(id) {
+            if(!activo) return;
+            activo = false;
 
-            fetch(`${SCRIPT_URL}?id=${decodedText}&ruta=${document.getElementById("ruta").value}`)
-                .then(response => response.json())
+            const box = document.getElementById("res-box");
+            const m1 = document.getElementById("msg-main");
+            const m2 = document.getElementById("msg-sub");
+
+            m1.innerText = "VERIFICANDO...";
+            box.className = "color-buscando";
+
+            fetch(`${SCRIPT_URL}?id=${id}&ruta=${document.getElementById("ruta").value}`)
+                .then(r => r.json())
                 .then(data => {
-                    // Separar el icono del mensaje para diseño
-                    let mensaje = data.mensaje;
-                    let icono = mensaje.substring(0, 2); // ✅, ❌ o 🚫
-                    let texto = mensaje.substring(2);
-
-                    resText.innerText = icono + texto;
-                    resSubtext.innerText = (data.status === "OK") ? "Pase por favor" : "Acceso denegado";
-                    resContainer.className = "result-container " + (data.status === "OK" ? "ok" : "err");
+                    m1.innerText = data.mensaje;
                     
-                    // Tiempo de parpadeo (0.8 seg)
-                    setTimeout(() => { 
-                        resText.innerText = "Escaneando...";
-                        resSubtext.innerText = "Acerque el código QR";
-                        resContainer.className = "result-container esperando";
-                        bloqueado = false; 
-                    }, 800);
+                    if(data.status === "OK") {
+                        box.className = "color-ok";
+                        m2.innerText = "ACCESO PERMITIDO";
+                    } else if(data.status === "RUTA") {
+                        box.className = "color-ruta";
+                        m2.innerText = "RUTA EQUIVOCADA";
+                    } else {
+                        box.className = "color-error";
+                        m2.innerText = "USUARIO NO VÁLIDO";
+                    }
+
+                    setTimeout(() => {
+                        box.className = "color-buscando";
+                        m1.innerText = "LISTO";
+                        m2.innerText = "Escanee el siguiente";
+                        activo = true;
+                    }, 1200);
                 })
-                .catch(error => {
-                    resText.innerText = "⚠️ Error";
-                    resSubtext.innerText = "Problema de conexión";
-                    resContainer.className = "result-container err";
-                    setTimeout(() => { bloqueado = false; }, 1000);
+                .catch(() => {
+                    m1.innerText = "SIN CONEXIÓN";
+                    box.className = "color-error";
+                    setTimeout(() => { activo = true; }, 2000);
                 });
         }
 
-        // Iniciamos la cámara. El tamaño del qrbox también se reduce.
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            { fps: 20, qrbox: { width: 150, height: 150 } }, 
-            onScanSuccess
-        );
+        html5QrCode.start({ facingMode: "environment" }, { fps: 25, qrbox: 150 }, leer);
     </script>
 </body>
 </html>
