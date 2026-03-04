@@ -1,43 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 20px; }
-        #reader { width: 100%; max-width: 400px; margin: auto; border-radius: 10px; overflow: hidden; }
-        .btn { background: #007bff; color: white; padding: 15px; border: none; border-radius: 8px; width: 100%; max-width: 400px; font-size: 18px; margin-top: 10px; }
-        #res { margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 20px; }
-        .ok { background: #28a745; } .err { background: #dc3545; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { margin: 0; padding: 0; background-color: #000; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { background: #1a1a1a; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; border-bottom: 1px solid #333; }
+        .controls { padding: 10px; background: #000; }
+        select { width: 100%; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; background: #222; color: #00d2ff; outline: none; appearance: none; text-align: center; }
+        
+        /* Contenedor de la cámara expandido */
+        #reader { flex-grow: 1; width: 100%; display: flex; align-items: center; justify-content: center; background: #000; }
+        #reader video { object-fit: cover; width: 100%; height: 100%; }
+        
+        /* Barra de resultados gigante abajo */
+        .result-container { height: 100px; padding: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 22px; font-weight: bold; transition: background 0.1s; }
+        .esperando { background: #111; color: #888; }
+        .ok { background: #28a745; color: white; }
+        .err { background: #dc3545; color: white; }
     </style>
 </head>
 <body>
-    <h2>Escáner de Ruta</h2>
-    <select id="ruta" style="padding:10px; width:100%; max-width:400px; margin-bottom:10px;">
-        <option value="Real_palmas">Real_palmas</option>
-        <option value="Villas_alcala">Villas_alcala</option>
-    </select>
+    <div class="header">Transporte Scan</div>
+    
+    <div class="controls">
+        <select id="ruta">
+            <option value="Real_palmas">🚌 Ruta: Real Palmas</option>
+            <option value="Villas_alcala">🚌 Ruta: Villas Alcalá</option>
+        </select>
+    </div>
+
     <div id="reader"></div>
-    <div id="res">Esperando...</div>
+    
+    <div id="res" class="result-container esperando">Escaneando...</div>
+
     <script>
+        // PEGA AQUÍ TU NUEVA URL DE GOOGLE APPS SCRIPT
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuzOA0muWLjxRrTZ-uKX7X8ELfMKVgdnydVu0AxqoYVKiYMcYw8k4rPfTCygScxc2MpQ/exec"; 
+        
         const html5QrCode = new Html5Qrcode("reader");
-        const SCRIPT_URL = "Thttps://script.google.com/macros/s/AKfycbxuzOA0muWLjxRrTZ-uKX7X8ELfMKVgdnydVu0AxqoYVKiYMcYw8k4rPfTCygScxc2MpQ/exec"; // <--- PEGA TU LINK AQUÍ
+        let bloqueado = false; // Control para modo ráfaga
 
         function onScanSuccess(decodedText) {
-            html5QrCode.pause(true);
+            // Si está procesando un código, ignoramos los demás para no saturar
+            if (bloqueado) return;
+            bloqueado = true; 
+            
             const resDiv = document.getElementById("res");
-            resDiv.innerText = "Verificando...";
-            resDiv.className = "";
+            resDiv.innerText = "Validando...";
+            resDiv.className = "result-container esperando";
 
+            // Pedimos los datos al Excel
             fetch(`${SCRIPT_URL}?id=${decodedText}&ruta=${document.getElementById("ruta").value}`)
-                .then(r => r.json())
+                .then(response => response.json())
                 .then(data => {
+                    // Mostramos el color y el mensaje
                     resDiv.innerText = data.mensaje;
-                    resDiv.className = data.status === "OK" ? "ok" : "err";
-                    setTimeout(() => { html5QrCode.resume(); }, 3000);
+                    resDiv.className = "result-container " + (data.status === "OK" ? "ok" : "err");
+                    
+                    // Solo esperamos 800 milisegundos (0.8 seg) y habilitamos el siguiente escaneo
+                    setTimeout(() => { 
+                        resDiv.innerText = "Escaneando...";
+                        resDiv.className = "result-container esperando";
+                        bloqueado = false; 
+                    }, 800);
+                })
+                .catch(error => {
+                    resDiv.innerText = "Error de conexión";
+                    resDiv.className = "result-container err";
+                    setTimeout(() => { bloqueado = false; }, 1000);
                 });
         }
 
-        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess);
+        // Iniciamos la cámara con 20 FPS para que reaccione rapidísimo
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 20, qrbox: { width: 250, height: 250 } }, 
+            onScanSuccess
+        );
     </script>
 </body>
 </html>
