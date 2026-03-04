@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 20px; }
+        #reader { width: 100%; max-width: 400px; margin: auto; border-radius: 10px; overflow: hidden; }
+        .btn { background: #007bff; color: white; padding: 15px; border: none; border-radius: 8px; width: 100%; max-width: 400px; font-size: 18px; margin-top: 10px; }
+        #res { margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 20px; }
+        .ok { background: #28a745; } .err { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <h2>Escáner de Ruta</h2>
+    <select id="ruta" style="padding:10px; width:100%; max-width:400px; margin-bottom:10px;">
+        <option value="Real_palmas">Real_palmas</option>
+        <option value="Villas_alcala">Villas_alcala</option>
+    </select>
+    <div id="reader"></div>
+    <div id="res">Esperando...</div>
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const SCRIPT_URL = "Thttps://script.google.com/macros/s/AKfycbxuzOA0muWLjxRrTZ-uKX7X8ELfMKVgdnydVu0AxqoYVKiYMcYw8k4rPfTCygScxc2MpQ/exec"; // <--- PEGA TU LINK AQUÍ
+
+        function onScanSuccess(decodedText) {
+            html5QrCode.pause(true);
+            const resDiv = document.getElementById("res");
+            resDiv.innerText = "Verificando...";
+            resDiv.className = "";
+
+            fetch(`${SCRIPT_URL}?id=${decodedText}&ruta=${document.getElementById("ruta").value}`)
+                .then(r => r.json())
+                .then(data => {
+                    resDiv.innerText = data.mensaje;
+                    resDiv.className = data.status === "OK" ? "ok" : "err";
+                    setTimeout(() => { html5QrCode.resume(); }, 3000);
+                });
+        }
+
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess);
+    </script>
+</body>
+</html>
